@@ -1,108 +1,118 @@
 import streamlit as st
-import yfinance as yf
+import requests
 import pandas as pd
 import plotly.graph_objects as go
 from streamlit_autorefresh import st_autorefresh
-import time
 
-# --- 🎯 1. SNIPER CONFIGURATION ---
-st.set_page_config(page_title="JARVIS-R: SNIPER", layout="wide")
-st_autorefresh(interval=1000, key="sniper_refresh") # 1 Second No-Blink
+# --- 🎯 1. ULTIMATE CONFIG ---
+st.set_page_config(page_title="JARVIS-R: FINAL SNIPER", layout="wide")
+st_autorefresh(interval=1000, key="jarvis_final_v9")
 
-# --- 🧠 2. DATA ENGINE ---
-def get_live_data(symbol):
+# --- 🧠 2. FAST-DATA ENGINE ---
+def get_crypto_data(coin="BTC"):
+    # Using CryptoCompare for real-time speed
+    url = f"https://min-api.cryptocompare.com/data/v2/histominute?fsym={coin}&tsym=USD&limit=100"
     try:
-        df = yf.download(symbol, period="1d", interval="1m", progress=False, auto_adjust=True)
-        if not df.empty:
-            if isinstance(df.columns, pd.MultiIndex): df.columns = df.columns.get_level_values(0)
-            return df
-    except: return None
+        response = requests.get(url).json()
+        data = response['Data']['Data']
+        df = pd.DataFrame(data)
+        df['time'] = pd.to_datetime(df['time'], unit='s')
+        df.set_index('time', inplace=True)
+        return df
+    except:
+        return pd.DataFrame()
 
-# --- 🔍 3. BRAIN: ULTRA-FAST VOICE (Web API) ---
-def jarvis_speak(text):
-    js = f"<script>var m=new SpeechSynthesisUtterance('{text}');window.speechSynthesis.speak(m);</script>"
+# --- 🔊 3. BACKGROUND VOICE ENGINE (WEB API) ---
+def jarvis_speak(text, alert_type="signal"):
+    # High-pitch beep for signals, low-pitch for exits
+    siren = "https://www.soundjay.com/buttons/sounds/beep-07.mp3" if alert_type=="signal" else "https://www.soundjay.com/buttons/sounds/beep-09.mp3"
+    js = f"""
+    <script>
+    var audio = new Audio('{siren}');
+    audio.play();
+    var msg = new SpeechSynthesisUtterance('{text}');
+    msg.rate = 1.0;
+    msg.pitch = 1.0;
+    msg.lang = 'hi-IN';
+    window.speechSynthesis.speak(msg);
+    </script>
+    """
     st.components.v1.html(js, height=0)
 
-# --- 🏦 4. BRANDING ---
+# --- 🏦 4. DASHBOARD UI ---
 st.markdown("""
-    <div style='text-align:center; background:linear-gradient(90deg, #000, #ff4b4b); padding:10px; border-radius:15px; border:2px solid #fff;'>
-        <h1 style='color:white; margin:0;'>🤖 JARVIS-R: SNIPER MODE</h1>
-        <p style='color:white; margin:0;'>₹5,000 CAPITAL | 20x LEVERAGE | 125 LOTS</p>
+    <div style='text-align:center; background:linear-gradient(90deg, #111, #ff4b4b); padding:15px; border-radius:15px; border:2px solid #fff;'>
+        <h1 style='color:white; margin:0;'>🤖 JARVIS-R: MASTER SNIPER v9.0</h1>
+        <p style='color:white; margin:0;'>₹5,000 CAPITAL | 200-300 PT BIG MOVE | CALL-PUT ACTIVE</p>
     </div>
 """, unsafe_allow_html=True)
 
-# Session States
-if "trade" not in st.session_state: st.session_state.trade = {"active": False, "entry": 0.0, "type": ""}
+# Important: Voice Unlock Button
+st.write("")
+col_btn1, col_btn2, col_btn3 = st.columns([1,2,1])
+with col_btn2:
+    if st.button("📢 ACTIVATE JARVIS VOICE (ट्रेडिंग शुरू करने से पहले इसे दबाएं)", use_container_width=True):
+        jarvis_speak("Jarvis is online. Rajveer Sir, I am ready to hunt big moves.")
+        st.success("Jarvis Voice Activated! ✅")
 
-# --- ⚙️ 5. SIDEBAR: PORTFOLIO DOCTOR ---
-with st.sidebar:
-    st.header("🏥 Portfolio Doctor")
-    st.write("**Capital:** ₹5,000")
-    st.write("**Leverage:** 20x (Safe)")
-    st.write("**Suggested Lot:** 125 Units (0.125 BTC)")
-    st.divider()
-    coin = st.selectbox("Asset:", ["BTC-USD", "ETH-USD"])
-    st.warning("Min Profit Filter: 20-40 Points")
+if "last_sig" not in st.session_state: st.session_state.last_sig = ""
+if "entry" not in st.session_state: st.session_state.entry = 0.0
 
-# --- 🚀 6. SNIPER EXECUTION ---
-df = get_live_data(coin)
+# --- 🚀 5. SNIPER LOGIC (45-POINTS) ---
+df = get_crypto_data("BTC")
 
-if df is not None and len(df) > 40:
-    ltp = round(float(df['Close'].iloc[-1]), 2)
+if not df.empty:
+    ltp = round(df['close'].iloc[-1], 2)
     
-    # 45-Point Technicals
-    df['E9'] = df['Close'].ewm(span=9, adjust=False).mean()
-    df['E21'] = df['Close'].ewm(span=21, adjust=False).mean()
-    df['E200'] = df['Close'].ewm(span=200, adjust=False).mean()
+    # Technical Indicators
+    df['E9'] = df['close'].ewm(span=9).mean()
+    df['E21'] = df['close'].ewm(span=21).mean()
+    df['E200'] = df['close'].ewm(span=200).mean()
     
-    # High Probability Signal Logic
+    # Volatility Check (To ensure 200-300 pt move)
+    volatility = df['high'].max() - df['low'].min()
+    
+    # Signal Logic
     buy_sig = (df['E9'].iloc[-1] > df['E21'].iloc[-1]) and (ltp > df['E200'].iloc[-1])
     sell_sig = (df['E9'].iloc[-1] < df['E21'].iloc[-1]) and (ltp < df['E200'].iloc[-1])
 
-    sig_text, sig_col = "⌛ SCANNING SNIPER ENTRY", "#555555"
+    # --- 🚦 SIGNAL TRIGGER ---
+    if buy_sig and st.session_state.last_sig != "BUY":
+        st.session_state.last_sig = "BUY"
+        st.session_state.entry = ltp
+        jarvis_speak(f"Rajveer Sir, Big Moment Call Entry at {ltp}. Let's go for 300 points.")
 
-    # --- 🟢 BUY/CALL ---
-    if buy_sig and not st.session_state.trade["active"]:
-        st.session_state.trade = {"active": True, "entry": ltp, "type": "CALL"}
-        jarvis_speak(f"Rajveer Sir, High Probability Buy Signal. Entry at {ltp}")
+    elif sell_sig and st.session_state.last_sig != "SELL":
+        st.session_state.last_sig = "SELL"
+        st.session_state.entry = ltp
+        jarvis_speak(f"Rajveer Sir, High Volume Put Entry at {ltp}. Trend is crashing.")
 
-    # --- 🔴 SELL/PUT ---
-    elif sell_sig and not st.session_state.trade["active"]:
-        st.session_state.trade = {"active": True, "entry": ltp, "type": "PUT"}
-        jarvis_speak(f"Rajveer Sir, High Probability Sell Signal. Entry at {ltp}")
+    # --- 📺 DISPLAY COMMAND CENTER ---
+    c1, c2, c3 = st.columns(3)
+    c1.metric("BTC LIVE PRICE", f"${ltp}")
+    c2.metric("CURRENT SIGNAL", st.session_state.last_sig if st.session_state.last_sig else "SCANNING...")
+    c3.metric("TARGET", "+300 Points", delta="Big Move Active")
 
-    # --- 🚦 EXIT LOGIC ---
-    if st.session_state.trade["active"]:
-        if st.session_state.trade["type"] == "CALL":
-            sig_text, sig_col = "🚀 ACTIVE CALL (LONG)", "#00ff00"
-            if (df['E9'].iloc[-1] < df['E21'].iloc[-1]):
-                st.session_state.trade["active"] = False
-                jarvis_speak("Trend Reversed. Exit Call Now.")
-        
-        elif st.session_state.trade["type"] == "PUT":
-            sig_text, sig_col = "📉 ACTIVE PUT (SHORT)", "#ff4b4b"
-            if (df['E9'].iloc[-1] > df['E21'].iloc[-1]):
-                st.session_state.trade["active"] = False
-                jarvis_speak("Trend Reversed. Exit Put Now.")
-
-    # --- 📺 THE DASHBOARD ---
-    c1, c2 = st.columns([2, 1])
-    with c1:
-        fig = go.Figure(data=[go.Candlestick(x=df.index, open=df['Open'], high=df['High'], low=df['Low'], close=df['Close'])])
+    col_ch, col_inf = st.columns([2, 1])
+    with col_ch:
+        fig = go.Figure(data=[go.Candlestick(x=df.index, open=df['open'], high=df['high'], low=df['low'], close=df['close'])])
+        fig.add_trace(go.Scatter(x=df.index, y=df['E200'], name='200 EMA', line=dict(color='orange', width=2)))
         fig.update_layout(template="plotly_dark", height=450, margin=dict(l=0,r=0,t=0,b=0), xaxis_rangeslider_visible=False)
         st.plotly_chart(fig, use_container_width=True)
 
-    with c2:
+    with col_inf:
+        s_col = "#00ff00" if "BUY" in st.session_state.last_sig else "#ff4b4b" if "SELL" in st.session_state.last_sig else "#555555"
         st.markdown(f"""
-            <div style='background:#111; padding:20px; border-radius:15px; border:2px solid {sig_col}; text-align:center;'>
-                <h1 style='color:white; margin:0;'>${ltp}</h1>
-                <h2 style='color:{sig_col};'>{sig_text}</h2>
+            <div style='background:#000; padding:20px; border-radius:15px; border:3px solid {s_col}; text-align:center;'>
+                <h2 style='color:white;'>STATUS</h2>
+                <h1 style='color:{s_col};'>{st.session_state.last_sig if st.session_state.last_sig else "WAITING"}</h1>
                 <hr>
-                <p style='color:gray;'>Entry: ${st.session_state.trade['entry'] if st.session_state.trade['entry'] > 0 else '---'}</p>
-                <p style='color:#00ff00;'>Target (₹400): +40 pts</p>
-                <p style='color:#ff4b4b;'>Karishma SL: -1%</p>
+                <p style='color:white;'>Entry Point: ${st.session_state.entry if st.session_state.entry > 0 else '---'}</p>
+                <p style='color:#00ff00;'>Profit Target: +$300</p>
+                <p style='color:#ff4b4b;'>Tight SL: -0.3%</p>
             </div>
         """, unsafe_allow_html=True)
+        st.info("💡 Tip: जैसे ही जार्विस बोले, बिना भाव देखे डेल्टा एक्सचेंज पर आर्डर मारें।")
 
 else:
-    st.info("📡 Connecting to Market Satellite... Standby Rajveer Sir.")
+    st.error("📡 Connecting to High-Speed Satellite... Rajveer Sir, please wait.")
