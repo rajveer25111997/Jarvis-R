@@ -4,19 +4,17 @@ import pandas as pd
 import pandas_ta as ta
 import plotly.graph_objects as go
 from streamlit_autorefresh import st_autorefresh
-import time
 
-# --- 🎯 1. ULTRA-STABLE CONFIG ---
-st.set_page_config(page_title="Jarvis R: Momentum Saver", layout="wide")
-st_autorefresh(interval=1000, key="jarvis_v34_momentum") # 1-Sec Tick
+# --- 🎯 1. CONFIG ---
+st.set_page_config(page_title="Jarvis R: Performance Tracker", layout="wide")
+st_autorefresh(interval=2000, key="jarvis_v35_tracker")
 
 def jarvis_r_speak(text):
     js = f"<script>window.speechSynthesis.cancel(); var m = new SpeechSynthesisUtterance('{text}'); m.lang='hi-IN'; window.speechSynthesis.speak(m);</script>"
     st.components.v1.html(js, height=0)
 
-# --- 🧠 2. HYBRID DATA ENGINE (No-Reload Logic) ---
+# --- 🧠 2. DATA ENGINE ---
 def get_crypto_data():
-    # सीधे लाइव डेटा फेच करना बिना भारी लाइब्रेरी के
     url = "https://min-api.cryptocompare.com/data/v2/histominute?fsym=BTC&tsym=USD&limit=300"
     try:
         response = requests.get(url, timeout=2).json()
@@ -24,68 +22,83 @@ def get_crypto_data():
         df['time'] = pd.to_datetime(df['time'], unit='s')
         df.set_index('time', inplace=True)
         return df
-    except:
-        return None
+    except: return None
 
-st.markdown("<h1 style='text-align:center; color:#00FF00;'>⚡ JARVIS-R: MOMENTUM SAVER v34.0</h1>", unsafe_allow_html=True)
+st.markdown("<h1 style='text-align:center; color:#FFD700;'>📊 JARVIS-R: PERFORMANCE TRACKER</h1>", unsafe_allow_html=True)
 
-# Persistent States
+# Persistent States for Tracking
 if "e_p" not in st.session_state: st.session_state.e_p = 0.0
 if "l_s" not in st.session_state: st.session_state.l_s = ""
-if "last_df" not in st.session_state: st.session_state.last_df = pd.DataFrame()
+if "total_trades" not in st.session_state: st.session_state.total_trades = 0
+if "win_count" not in st.session_state: st.session_state.win_count = 0
+if "loss_count" not in st.session_state: st.session_state.loss_count = 0
+if "trade_history" not in st.session_state: st.session_state.trade_history = []
 
-# --- 🚀 3. THE EXECUTION ---
-raw_data = get_crypto_data()
+df = get_crypto_data()
 
-# अगर नया डेटा मिला तो अपडेट करें, वरना पुराने को ही दिखाएँ (Connecting नहीं आएगा)
-if raw_data is not None:
-    st.session_state.last_df = raw_data
+if df is not None and not df.empty:
+    df['EMA9'] = ta.ema(df['close'], length=9)
+    df['EMA21'] = ta.ema(df['close'], length=21)
+    df['EMA200'] = ta.ema(df['close'], length=200)
+    
+    ltp = float(df['close'].iloc[-1])
+    
+    # --- 🚦 SIGNAL LOGIC ---
+    is_call = bool(df['EMA9'].iloc[-1] > df['EMA21'].iloc[-1] and ltp > df['EMA200'].iloc[-1])
+    is_put = bool(df['EMA9'].iloc[-1] < df['EMA21'].iloc[-1] and ltp < df['EMA200'].iloc[-1])
 
-df = st.session_state.last_df
+    # NEW TRADE DETECTION
+    if is_call and st.session_state.l_s != "CALL":
+        st.session_state.l_s = "CALL"; st.session_state.e_p = ltp
+        st.session_state.total_trades += 1
+        jarvis_r_speak("New Call Signal Detected")
+    elif is_put and st.session_state.l_s != "PUT":
+        st.session_state.l_s = "PUT"; st.session_state.e_p = ltp
+        st.session_state.total_trades += 1
+        jarvis_r_speak("New Put Signal Detected")
 
-if not df.empty and len(df) > 100:
-    try:
-        # Technicals
-        df['EMA9'] = ta.ema(df['close'], length=9)
-        df['EMA21'] = ta.ema(df['close'], length=21)
-        df['EMA200'] = ta.ema(df['close'], length=200)
+    # --- 📊 ACCURACY TRACKING (When Signal Changes) ---
+    if st.session_state.e_p > 0:
+        pnl = round(ltp - st.session_state.e_p if st.session_state.l_s == "CALL" else st.session_state.e_p - ltp, 2)
         
-        ltp = float(df['close'].iloc[-1])
-        ema9, ema21, ema200 = df['EMA9'].iloc[-1], df['EMA21'].iloc[-1], df['EMA200'].iloc[-1]
+        # Check for Reversal to close trade and count win/loss
+        rev = (st.session_state.l_s == "CALL" and df['EMA9'].iloc[-1] < df['EMA21'].iloc[-1]) or \
+              (st.session_state.l_s == "PUT" and df['EMA9'].iloc[-1] > df['EMA21'].iloc[-1])
+        
+        if rev:
+            status = "WIN ✅" if pnl > 0 else "LOSS ❌"
+            if pnl > 0: st.session_state.win_count += 1
+            else: st.session_state.loss_count += 1
+            
+            # Save to history
+            st.session_state.trade_history.append({"Type": st.session_state.l_s, "Entry": st.session_state.e_p, "Exit": ltp, "Points": pnl, "Result": status})
+            st.session_state.e_p = 0.0; st.session_state.l_s = ""
 
-        # --- 🚦 MOMENTUM SIGNAL ---
-        is_call = bool(ema9 > ema21 and ltp > ema200)
-        is_put = bool(ema9 < ema21 and ltp < ema200)
+    # --- 📺 SCOREBOARD DASHBOARD ---
+    sc1, sc2, sc3, sc4 = st.columns(4)
+    sc1.metric("TOTAL SIGNALS", st.session_state.total_trades)
+    sc2.metric("SUCCESS (WINS)", st.session_state.win_count, delta_color="normal")
+    sc3.metric("FAILURES (LOSS)", st.session_state.loss_count, delta_color="inverse")
+    accuracy = (st.session_state.win_count / st.session_state.total_trades * 100) if st.session_state.total_trades > 0 else 0
+    sc4.metric("ACCURACY %", f"{round(accuracy, 2)}%")
 
-        if is_call and st.session_state.l_s != "CALL":
-            st.session_state.l_s = "CALL"; st.session_state.e_p = ltp
-            jarvis_r_speak(f"Rajveer Sir, Call Option Buy. Momentum fast hai!")
-        elif is_put and st.session_state.l_s != "PUT":
-            st.session_state.l_s = "PUT"; st.session_state.e_p = ltp
-            jarvis_r_speak(f"Rajveer Sir, Put Option Buy. Market dropping!")
+    st.write("---")
+    
+    # Live Signal Info
+    if st.session_state.l_s != "":
+        st.info(f"LIVE TRADE: {st.session_state.l_s} from {st.session_state.e_p} | Current PNL: {pnl} Pts")
 
-        # --- 📺 PRO DASHBOARD ---
-        c1, c2, c3 = st.columns(3)
-        c1.metric("LIVE PRICE", f"${ltp}")
-        c2.metric("SIGNAL", st.session_state.l_s if st.session_state.l_s else "WAITING")
-        pnl = round(ltp - st.session_state.e_p if st.session_state.l_s == "CALL" else st.session_state.e_p - ltp, 2) if st.session_state.e_p > 0 else 0
-        c3.metric("PNL (POINTS)", f"{pnl} Pts", delta=pnl)
+    # Trade History Table
+    if st.session_state.trade_history:
+        st.subheader("📜 Recent Signal Report")
+        st.table(pd.DataFrame(st.session_state.trade_history).tail(5))
 
-        # बड़ा कॉल/पुट बॉक्स
-        if st.session_state.l_s != "":
-            box_color = "#1E5631" if st.session_state.l_s == "CALL" else "#800000"
-            st.markdown(f"<div style='background-color:{box_color}; padding:15px; border-radius:10px; text-align:center;'><h2>ACTIVE: {st.session_state.l_s} @ ${st.session_state.e_p}</h2></div>", unsafe_allow_html=True)
+    # Chart
+    fig = go.Figure(data=[go.Candlestick(x=df.index, open=df['open'], high=df['high'], low=df['low'], close=df['close'])])
+    fig.add_trace(go.Scatter(x=df.index, y=df['EMA200'], name='200 EMA', line=dict(color='orange')))
+    fig.update_layout(template="plotly_dark", height=400, xaxis_rangeslider_visible=False)
+    st.plotly_chart(fig, use_container_width=True)
 
-        # Chart
-        fig = go.Figure(data=[go.Candlestick(x=df.index, open=df['open'], high=df['high'], low=df['low'], close=df['close'])])
-        fig.add_trace(go.Scatter(x=df.index, y=df['EMA200'], name='200 EMA', line=dict(color='orange')))
-        fig.update_layout(template="plotly_dark", height=450, xaxis_rangeslider_visible=False, margin=dict(l=0,r=0,t=0,b=0))
-        st.plotly_chart(fig, use_container_width=True)
-
-    except Exception as e:
-        st.write("Recalculating...")
-else:
-    st.warning("Connecting to Fast API... Please wait.")
-
-if st.button("🔄 Reset Manual"):
-    st.session_state.e_p = 0.0; st.session_state.l_s = ""; st.rerun()
+if st.button("🗑️ Clear All History"):
+    st.session_state.total_trades = 0; st.session_state.win_count = 0; st.session_state.loss_count = 0
+    st.session_state.trade_history = []; st.session_state.e_p = 0.0; st.session_state.l_s = ""; st.rerun()
