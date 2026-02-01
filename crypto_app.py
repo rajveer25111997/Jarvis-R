@@ -5,12 +5,12 @@ import pandas_ta as ta
 import plotly.graph_objects as go
 from streamlit_autorefresh import st_autorefresh
 
-# --- 🎯 1. SUPREME CONFIG ---
-st.set_page_config(page_title="Jarvis R: Unbreakable", layout="wide")
-st_autorefresh(interval=1000, key="jarvis_v26_final")
+# --- 🎯 1. CONFIG ---
+st.set_page_config(page_title="Jarvis R: Visual Sniper", layout="wide")
+st_autorefresh(interval=1000, key="jarvis_visual_v28")
 
 # --- 🔊 2. VOICE ENGINE ---
-def jarvis_r_speak(text, alert_type="normal"):
+def jarvis_r_speak(text):
     js = f"""
     <script>
     window.speechSynthesis.cancel();
@@ -32,79 +32,67 @@ def get_fast_data():
         return df
     except: return pd.DataFrame()
 
-st.markdown("<h1 style='text-align:center; color:#FFD700;'>🛡️ JARVIS-R: UNBREAKABLE v26.0</h1>", unsafe_allow_html=True)
+# --- 🎨 4. BRANDING ---
+st.markdown("<h1 style='text-align:center; color:#FFD700;'>🎯 JARVIS-R: VISUAL COMMAND CENTER</h1>", unsafe_allow_html=True)
 
-# State Management
 if "e_p" not in st.session_state: st.session_state.e_p = 0.0
 if "l_s" not in st.session_state: st.session_state.l_s = ""
 
-# --- 🚀 4. EXECUTION ENGINE ---
+# --- 🚀 5. EXECUTION ---
 df = get_fast_data()
 
 if not df.empty and len(df) > 200:
-    try:
-        # Indicators Calculation
-        df['EMA9'] = ta.ema(df['close'], length=9)
-        df['EMA21'] = ta.ema(df['close'], length=21)
-        df['EMA200'] = ta.ema(df['close'], length=200)
-        adx_df = ta.adx(df['high'], df['low'], df['close'], length=14)
-        df['ADX'] = adx_df['ADX_14']
+    df['EMA9'] = ta.ema(df['close'], length=9)
+    df['EMA21'] = ta.ema(df['close'], length=21)
+    df['EMA200'] = ta.ema(df['close'].astype(float), length=200)
+    adx_df = ta.adx(df['high'], df['low'], df['close'], length=14)
+    df['ADX'] = adx_df['ADX_14']
+    df.dropna(subset=['EMA200'], inplace=True)
+
+    if not df.empty:
+        ltp = float(df['close'].iloc[-1])
+        cur_adx = float(df['ADX'].iloc[-1])
         
-        # ERROR PROTECTION: Drop rows where EMA200 is NaN
-        df.dropna(subset=['EMA200', 'ADX'], inplace=True)
-        
-        if not df.empty:
-            ltp = float(df['close'].iloc[-1])
-            cur_adx = float(df['ADX'].iloc[-1])
-            ema9 = float(df['EMA9'].iloc[-1])
-            ema21 = float(df['EMA21'].iloc[-1])
-            ema200 = float(df['EMA200'].iloc[-1])
+        # --- 🚦 CALL/PUT LOGIC ---
+        is_trending = cur_adx > 20
+        is_call = bool(is_trending and df['EMA9'].iloc[-1] > df['EMA21'].iloc[-1] and ltp > df['EMA200'].iloc[-1])
+        is_put = bool(is_trending and df['EMA9'].iloc[-1] < df['EMA21'].iloc[-1] and ltp < df['EMA200'].iloc[-1])
 
-            # Logic Filters
-            is_trending = cur_adx > 22
-            is_buy = bool(is_trending and ema9 > ema21 and ltp > ema200 and ltp > df['high'].iloc[-2])
-            is_sell = bool(is_trending and ema9 < ema21 and ltp < ema200 and ltp < df['low'].iloc[-2])
+        # Voice Trigger
+        if is_call and st.session_state.l_s != "CALL":
+            st.session_state.l_s = "CALL"; st.session_state.e_p = ltp
+            jarvis_r_speak(f"Rajveer Sir, Call Option Buy karo!")
+        elif is_put and st.session_state.l_s != "PUT":
+            st.session_state.l_s = "PUT"; st.session_state.e_p = ltp
+            jarvis_r_speak(f"Rajveer Sir, Put Option Buy karo!")
 
-            # Signal Trigger
-            if is_buy and st.session_state.l_s != "BUY":
-                st.session_state.l_s = "BUY"
-                st.session_state.e_p = ltp
-                jarvis_r_speak(f"Master Buy at {ltp}. Momentum confirm.")
-            elif is_sell and st.session_state.l_s != "SELL":
-                st.session_state.l_s = "SELL"
-                st.session_state.e_p = ltp
-                jarvis_r_speak(f"Master Sell at {ltp}. Market is crashing.")
+        # --- 📺 VISUAL DASHBOARD ---
+        # बड़ा सिग्नल कार्ड
+        if st.session_state.l_s == "CALL":
+            st.markdown(f"""<div style='background-color:#008000; padding:20px; border-radius:10px; text-align:center;'>
+                <h1 style='color:white; margin:0;'>🚀 BUY CALL OPTION NOW</h1>
+                <h2 style='color:yellow; margin:0;'>ENTRY: ${st.session_state.e_p} | LTP: ${ltp}</h2>
+            </div>""", unsafe_allow_html=True)
+        elif st.session_state.l_s == "PUT":
+            st.markdown(f"""<div style='background-color:#FF0000; padding:20px; border-radius:10px; text-align:center;'>
+                <h1 style='color:white; margin:0;'>📉 BUY PUT OPTION NOW</h1>
+                <h2 style='color:yellow; margin:0;'>ENTRY: ${st.session_state.e_p} | LTP: ${ltp}</h2>
+            </div>""", unsafe_allow_html=True)
+        else:
+            st.markdown("<div style='text-align:center; padding:10px;'><h3>⌛ Scanning for Master Signal...</h3></div>", unsafe_allow_html=True)
 
-            # PNL & Momentum Audio Alert (250-500 Pts)
-            if st.session_state.e_p > 0:
-                pnl = round(ltp - st.session_state.e_p if st.session_state.l_s == "BUY" else st.session_state.e_p - ltp, 2)
-                if pnl >= 250:
-                    jarvis_r_speak("Rajveer Sir, bada momentum pakda hai! Ruko nahi, jackpot ki taraf badho!")
-                
-                # Trend-Following Exit
-                rev = (st.session_state.l_s == "BUY" and ltp < ema9) or (st.session_state.l_s == "SELL" and ltp > ema9)
-                if rev and pnl > 50:
-                    jarvis_r_speak("Exit! Trend palat raha hai, munafa bachao.")
-                    st.session_state.e_p = 0.0
-                    st.session_state.l_s = "EXIT"
-
-            # --- 📺 DISPLAY ---
-            c1, c2, c3 = st.columns(3)
-            c1.metric("LIVE BTC", f"${ltp}")
-            c2.metric("ENTRY PRICE", f"${st.session_state.e_p if st.session_state.e_p > 0 else '---'}")
-            pnl_final = round(ltp - st.session_state.e_p if st.session_state.l_s == "BUY" else st.session_state.e_p - ltp, 2) if st.session_state.e_p > 0 else 0
-            c3.metric("LIVE PNL", f"{pnl_final} Pts")
-
+        st.write("---")
+        # चार्ट और बाकी मीटर
+        c1, c2 = st.columns([2, 1])
+        with c1:
             fig = go.Figure(data=[go.Candlestick(x=df.index, open=df['open'], high=df['high'], low=df['low'], close=df['close'])])
-            fig.add_trace(go.Scatter(x=df.index, y=df['EMA200'], name='200 EMA', line=dict(color='orange')))
-            fig.update_layout(template="plotly_dark", height=450, xaxis_rangeslider_visible=False)
+            fig.update_layout(template="plotly_dark", height=400, margin=dict(l=0,r=0,t=0,b=0), xaxis_rangeslider_visible=False)
             st.plotly_chart(fig, use_container_width=True)
-    except Exception as e:
-        st.error(f"Waiting for stable indicators... (EMA200 building)")
-else:
-    st.info("📡 Connecting to Satellite Feed... Waiting for 200 data points.")
+        with c2:
+            st.metric("CURRENT ADX (Strength)", round(cur_adx, 2))
+            if st.session_state.e_p > 0:
+                pnl = round(ltp - st.session_state.e_p if st.session_state.l_s == "CALL" else st.session_state.e_p - ltp, 2)
+                st.metric("LIVE POINTS", f"{pnl} Pts", delta=pnl)
 
-if st.button("🔄 Manual Trade Reset"):
-    st.session_state.e_p = 0.0
-    st.session_state.l_s = ""
-    st.rerun()
+if st.button("🔄 Reset Manual (Next Trade)"):
+    st.session_state.e_p = 0.0; st.session_state.l_s = ""; st.rerun()
