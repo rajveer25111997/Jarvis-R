@@ -1,20 +1,19 @@
 import streamlit as st
 import requests
 import pandas as pd
+import pandas_ta as ta # इसके लिए 'pip install pandas_ta' ज़रूरी है
 import plotly.graph_objects as go
 from streamlit_autorefresh import st_autorefresh
 
 # --- 🎯 1. SUPREME CONFIG ---
-st.set_page_config(page_title="Jarvis R: Supreme Hunter", layout="wide")
-st_autorefresh(interval=1000, key="jarvis_supreme_v23")
+st.set_page_config(page_title="Jarvis R: Anti-Fakeout", layout="wide")
+st_autorefresh(interval=2000, key="jarvis_v24_fix")
 
 # --- 🔊 2. VOICE ENGINE ---
 def jarvis_r_speak(text, alert_type="normal"):
-    beep = "https://www.soundjay.com/buttons/sounds/beep-07.mp3" if alert_type == "normal" else "https://www.soundjay.com/buttons/sounds/beep-09.mp3"
     js = f"""
     <script>
     window.speechSynthesis.cancel();
-    new Audio('{beep}').play();
     var m = new SpeechSynthesisUtterance('{text}');
     m.lang = 'hi-IN'; m.rate = 1.0;
     window.speechSynthesis.speak(m);
@@ -22,9 +21,9 @@ def jarvis_r_speak(text, alert_type="normal"):
     """
     st.components.v1.html(js, height=0)
 
-# --- 🧠 3. FAST DATA ENGINE ---
+# --- 🧠 3. DATA ENGINE ---
 def get_fast_data():
-    url = "https://min-api.cryptocompare.com/data/v2/histominute?fsym=BTC&tsym=USD&limit=100"
+    url = "https://min-api.cryptocompare.com/data/v2/histominute?fsym=BTC&tsym=USD&limit=150"
     try:
         response = requests.get(url).json()
         df = pd.DataFrame(response['Data']['Data'])
@@ -33,83 +32,74 @@ def get_fast_data():
         return df
     except: return pd.DataFrame()
 
-st.markdown("<h1 style='text-align:center; color:#f7931a;'>🚀 JARVIS-R: SUPREME MOMENTUM HUNTER</h1>", unsafe_allow_html=True)
+st.markdown("<h1 style='text-align:center; color:#FF4B4B;'>🛡️ JARVIS-R: ANTI-FAKE SIGNAL v24.0</h1>", unsafe_allow_html=True)
 
 # State Management
-if "entry_p" not in st.session_state: st.session_state.entry_p = 0.0
-if "last_s" not in st.session_state: st.session_state.last_s = ""
-if "hunter_mode" not in st.session_state: st.session_state.hunter_mode = False
+if "e_p" not in st.session_state: st.session_state.e_p = 0.0
+if "l_s" not in st.session_state: st.session_state.l_s = ""
 
-# --- 🚀 4. EXECUTION & STRATEGY VOTING ---
+# --- 🚀 4. EXECUTION & SMART FILTERS ---
 df = get_fast_data()
 
 if not df.empty:
-    ltp = float(df['close'].iloc[-1])
+    # --- 📊 Indicators Calculation ---
+    df['EMA9'] = ta.ema(df['close'], length=9)
+    df['EMA21'] = ta.ema(df['close'], length=21)
+    df['EMA200'] = ta.ema(df['close'], length=200)
+    # ADX: Trend Strength Filter (25 के ऊपर मतलब मजबूत ट्रेंड)
+    adx_df = ta.adx(df['high'], df['low'], df['close'], length=14)
+    df['ADX'] = adx_df['ADX_14']
     
-    # Background Strategies Calculation
-    df['E9'] = df['close'].ewm(span=9).mean()
-    df['E21'] = df['close'].ewm(span=21).mean()
-    df['E200'] = df['close'].ewm(span=200).mean()
-    # RSI for Strength
-    delta = df['close'].diff()
-    gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
-    loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
-    rs = gain / loss
-    df['RSI'] = 100 - (100 / (1 + rs))
+    ltp = float(df['close'].iloc[-1])
+    current_adx = df['ADX'].iloc[-1]
 
-    # Voting System
-    score = 0
-    if df['E9'].iloc[-1] > df['E21'].iloc[-1] and ltp > df['E200'].iloc[-1]: score += 1 # Javed Logic
-    if df['RSI'].iloc[-1] > 50: score += 1 # Momentum Logic
-    if ltp > df['high'].iloc[-2]: score += 1 # Breakout Logic
+    # --- 🚦 SMART SIGNAL LOGIC (Filtering False Signals) ---
+    # 1. Trend Strength Check (ADX > 25)
+    # 2. EMA Crossover
+    # 3. Price confirmation (Above/Below 200 EMA)
+    
+    is_trending = current_adx > 22 # Market में हलचल है
+    
+    buy_condition = (is_trending and 
+                     df['EMA9'].iloc[-1] > df['EMA21'].iloc[-1] and 
+                     ltp > df['EMA200'].iloc[-1] and 
+                     ltp > df['high'].iloc[-2]) # Price Confirmation
 
-    # High Probability Signal (Score >= 2)
-    if score >= 2 and st.session_state.last_s != "BUY":
-        st.session_state.last_s = "BUY"
-        st.session_state.entry_p = ltp
-        jarvis_r_speak(f"Master Buy Entry at {ltp}. High probability momentum ahead.")
+    sell_condition = (is_trending and 
+                      df['EMA9'].iloc[-1] < df['EMA21'].iloc[-1] and 
+                      ltp < df['EMA200'].iloc[-1] and 
+                      ltp < df['low'].iloc[-2]) # Price Confirmation
 
-    elif score <= 0 and st.session_state.last_s != "SELL":
-        st.session_state.last_s = "SELL"
-        st.session_state.entry_p = ltp
-        jarvis_r_speak(f"Master Sell Entry at {ltp}. Trend is crashing.")
+    # --- 🚨 SIGNAL TRIGGER ---
+    if buy_condition and st.session_state.l_s != "BUY":
+        st.session_state.l_s = "BUY"
+        st.session_state.e_p = ltp
+        jarvis_r_speak(f"Confirm Buy Signal at {ltp}. Trend is strong.")
 
-    # --- 🛡️ MOMENTUM & TARGET TRACKING ---
-    pnl = 0.0
-    if st.session_state.entry_p > 0:
-        pnl = round(ltp - st.session_state.entry_p if st.session_state.last_s == "BUY" else st.session_state.entry_p - ltp, 2)
-        
-        # Hunter Mode Voice (250, 300, 500 Pts)
-        if pnl >= 250 and pnl < 500:
-            if not st.session_state.hunter_mode:
-                jarvis_r_speak("Rajveer Sir, 250 point paar! Trend bahut majboot hai, ruko nahi!")
-                st.session_state.hunter_mode = True
-        elif pnl >= 500:
-            jarvis_r_speak("Jackpot! 500 points achieved. Ab profit book karne ka socho!", alert_type="emergency")
-
-        # Exit if trend reverses against strategy
-        if (st.session_state.last_s == "BUY" and ltp < df['E9'].iloc[-1]) or \
-           (st.session_state.last_s == "SELL" and ltp > df['E9'].iloc[-1]):
-            if pnl > 50: # Only exit if some profit was there or SL hit
-                jarvis_r_speak("Exit! Market trend ke against ja raha hai.", alert_type="emergency")
-                st.session_state.entry_p = 0.0
-                st.session_state.last_s = "EXIT"
+    elif sell_condition and st.session_state.l_s != "SELL":
+        st.session_state.l_s = "SELL"
+        st.session_state.e_p = ltp
+        jarvis_r_speak(f"Confirm Sell Signal at {ltp}. Momentum is crashing.")
 
     # --- 📺 DASHBOARD ---
-    col1, col2, col3, col4 = st.columns(4)
+    col1, col2, col3 = st.columns(3)
     col1.metric("LTP", f"${ltp}")
-    col2.metric("ENTRY PRICE", f"${st.session_state.entry_p if st.session_state.entry_p > 0 else '---'}")
-    col3.metric("SIGNAL", st.session_state.last_s)
-    col4.metric("LIVE PNL", f"{pnl} Pts", delta=pnl)
+    col2.metric("ENTRY", f"${st.session_state.e_p}")
+    # ADX Color Coding
+    adx_color = "green" if current_adx > 25 else "red"
+    col3.markdown(f"**Trend Strength (ADX):** <span style='color:{adx_color};'>{round(current_adx, 2)}</span>", unsafe_allow_html=True)
 
-    # Big Chart
+    if current_adx < 22:
+        st.warning("⚠️ Market is Sideways. Jarvis is ignoring signals to save your capital.")
+
+    # Chart
     fig = go.Figure(data=[go.Candlestick(x=df.index, open=df['open'], high=df['high'], low=df['low'], close=df['close'])])
-    fig.add_trace(go.Scatter(x=df.index, y=df['E200'], name='200 EMA (The Wall)', line=dict(color='orange', width=2)))
-    fig.update_layout(template="plotly_dark", height=500, xaxis_rangeslider_visible=False)
+    fig.add_trace(go.Scatter(x=df.index, y=df['EMA9'], name='EMA 9', line=dict(color='cyan')))
+    fig.add_trace(go.Scatter(x=df.index, y=df['EMA21'], name='EMA 21', line=dict(color='yellow')))
+    fig.update_layout(template="plotly_dark", height=450, xaxis_rangeslider_visible=False)
     st.plotly_chart(fig, use_container_width=True)
 
-if st.button("🔄 Reset Jarvis R for Next Hunting"):
-    st.session_state.entry_p = 0.0
-    st.session_state.last_s = ""
-    st.session_state.hunter_mode = False
+if st.button("🔄 Reset Trade"):
+    st.session_state.e_p = 0.0
+    st.session_state.l_s = ""
     st.rerun()
