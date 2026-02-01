@@ -4,107 +4,101 @@ import pandas as pd
 import plotly.graph_objects as go
 from streamlit_autorefresh import st_autorefresh
 
-# --- 🎯 1. CONFIG ---
-st.set_page_config(page_title="JARVIS-R: PROTECTOR", layout="wide")
-st_autorefresh(interval=1000, key="jarvis_v18_final")
+# --- 🎯 Jarvis R Configuration ---
+st.set_page_config(page_title="Jarvis R: Crypto Hunter", layout="wide")
+st_autorefresh(interval=1000, key="jarvis_r_v20")
 
-# --- 🔊 2. VOICE ENGINE (No-Overlap Fix) ---
-def jarvis_speak(text, type="signal"):
-    siren = "https://www.soundjay.com/buttons/sounds/beep-07.mp3" if type=="signal" else "https://www.soundjay.com/buttons/sounds/beep-04.mp3"
-    js_code = f"""
+# --- 🔊 Ultra-Fast Voice Engine ---
+def jarvis_r_speak(text, alert_type="normal"):
+    # alert_type "emergency" के लिए तेज़ सायरन
+    beep = "https://www.soundjay.com/buttons/sounds/beep-04.mp3" if alert_type == "normal" else "https://www.soundjay.com/buttons/sounds/beep-09.mp3"
+    js = f"""
     <script>
-    window.speechSynthesis.cancel(); // पुराने अलर्ट को तुरंत बंद करने के लिए
-    var audio = new Audio('{siren}');
-    audio.play();
-    var msg = new SpeechSynthesisUtterance('{text}');
-    msg.lang = 'hi-IN';
-    window.speechSynthesis.speak(msg);
+    window.speechSynthesis.cancel();
+    new Audio('{beep}').play();
+    var m = new SpeechSynthesisUtterance('{text}');
+    m.lang = 'hi-IN'; m.rate = 1.1;
+    window.speechSynthesis.speak(m);
     </script>
     """
-    st.components.v1.html(js_code, height=0)
+    st.components.v1.html(js, height=0)
 
-# --- 📊 3. DATA ENGINE ---
-def get_live_data(symbol):
-    try:
-        df = yf.download(symbol, period="1d", interval="1m", progress=False, auto_adjust=True)
-        if not df.empty:
-            if isinstance(df.columns, pd.MultiIndex): df.columns = df.columns.get_level_values(0)
-            return df
-        return pd.DataFrame()
-    except: return pd.DataFrame()
+st.markdown("<h1 style='text-align:center; color:#f7931a;'>₿ Jarvis R: Crypto Hunter</h1>", unsafe_allow_html=True)
 
-# --- 🏦 4. BRANDING ---
-st.markdown("""
-    <div style='text-align:center; background:linear-gradient(90deg, #1e3c72, #2a5298); padding:10px; border-radius:15px; border:2px solid gold;'>
-        <h1 style='color:white; margin:0;'>🤖 JARVIS-R: PROTECTOR v18.0</h1>
-        <p style='color:gold; margin:0;'>TARGET + SL VOICE ALERT | NSE & CRYPTO</p>
-    </div>
-""", unsafe_allow_html=True)
+# State Management for Jarvis R
+if "r_entry" not in st.session_state: st.session_state.r_entry = 0.0
+if "r_last_sig" not in st.session_state: st.session_state.r_last_sig = ""
+if "r_trend" not in st.session_state: st.session_state.r_trend = "Neutral"
 
-if st.button("📢 ACTIVATE JARVIS", use_container_width=True):
-    jarvis_speak("System Active. Rajveer Sir, ab target aur stop loss dono par meri nazar hai.")
+# --- 🧠 Data Engine ---
+df = yf.download("BTC-USD", period="1d", interval="1m", progress=False, auto_adjust=True)
 
-# State Management
-if "last_sig" not in st.session_state: st.session_state.last_sig = ""
-if "entry_price" not in st.session_state: st.session_state.entry_price = 0.0
-if "alert_done" not in st.session_state: st.session_state.alert_done = False
-
-# --- 🚀 5. LOGIC ENGINE ---
-asset = st.sidebar.selectbox("Market Asset:", ["^NSEI", "^NSEBANK", "BTC-USD", "RELIANCE.NS"])
-df = get_live_data(asset)
-
-if not df.empty and len(df) > 20:
+if not df.empty:
     ltp = round(df['Close'].iloc[-1], 2)
     df['E9'] = df['Close'].ewm(span=9).mean()
     df['E21'] = df['Close'].ewm(span=21).mean()
     df['E200'] = df['Close'].ewm(span=200).mean()
 
-    # Priority Signal Logic (Donon ek saath nahi bajenge)
-    buy_cond = (df['E9'].iloc[-1] > df['E21'].iloc[-1]) and (ltp > df['E200'].iloc[-1])
-    sell_cond = (df['E9'].iloc[-1] < df['E21'].iloc[-1]) and (ltp < df['E200'].iloc[-1])
+    # Strategy: Javed (9/21) + 200 EMA
+    buy_sig = (df['E9'].iloc[-1] > df['E21'].iloc[-1]) and (ltp > df['E200'].iloc[-1])
+    sell_sig = (df['E9'].iloc[-1] < df['E21'].iloc[-1]) and (ltp < df['E200'].iloc[-1])
 
-    # 🚦 SIGNAL TRIGGER
-    if buy_cond and st.session_state.last_sig != "BUY":
-        st.session_state.last_sig = "BUY"
-        st.session_state.entry_price = ltp
-        st.session_state.alert_done = False
-        jarvis_speak(f"Master Buy Signal in {asset} at {ltp}.")
+    # --- 🚦 Jarvis R Entry Logic ---
+    if buy_sig and st.session_state.r_last_sig != "BUY":
+        st.session_state.r_last_sig = "BUY"
+        st.session_state.r_entry = ltp
+        jarvis_r_speak(f"Jarvis R Signal: Master Buy Bitcoin at {ltp}")
 
-    elif sell_cond and st.session_state.last_sig != "SELL":
-        st.session_state.last_sig = "SELL"
-        st.session_state.entry_price = ltp
-        st.session_state.alert_done = False
-        jarvis_speak(f"Master Sell Signal in {asset} at {ltp}.")
+    elif sell_sig and st.session_state.r_last_sig != "SELL":
+        st.session_state.r_last_sig = "SELL"
+        st.session_state.r_entry = ltp
+        jarvis_r_speak(f"Jarvis R Signal: Master Sell Bitcoin at {ltp}")
 
-    # 🛡️ TARGET & SL MONITOR (20 Point Target | 10 Point SL)
-    if st.session_state.entry_price > 0 and not st.session_state.alert_done:
-        pnl = ltp - st.session_state.entry_price if st.session_state.last_sig == "BUY" else st.session_state.entry_price - ltp
+    # --- 🛡️ Hunter & Protector Logic (Target/SL) ---
+    if st.session_state.r_entry > 0:
+        # Profit/Loss Calculation
+        diff = ltp - st.session_state.r_entry if st.session_state.r_last_sig == "BUY" else st.session_state.r_entry - ltp
         
-        # Target Alert (20 Points)
-        if pnl >= 20:
-            jarvis_speak("Rajveer Sir, Target Achieved! Paisa mil gaya hai, ab bahar niklo.", type="exit")
-            st.session_state.alert_done = True
-            st.balloons()
-            
-        # Karishma Stop Loss (10 Points)
-        elif pnl <= -10:
-            jarvis_speak("Emergency! Stop Loss hit ho gaya hai. Capital bachao aur exit karo.", type="exit")
-            st.session_state.alert_done = True
-            st.session_state.entry_price = 0
+        # 🟢 Condition 1: Profit is Growing (Ruko Nahi Mode)
+        if diff >= 300: # 300 points threshold
+            if ltp > df['E9'].iloc[-1] if st.session_state.r_last_sig == "BUY" else ltp < df['E9'].iloc[-1]:
+                if st.session_state.r_trend != "Strong":
+                    jarvis_r_speak("Rajveer Sir, bada munafa ho raha hai. Trend strong hai, ruko nahi!")
+                    st.session_state.r_trend = "Strong"
+        
+        # 🔴 Condition 2: Trend Reversal (Exit Mode)
+        # अगर प्राइस 9 EMA के वापस अंदर आ जाए (Trend पलटने का संकेत)
+        reversal = (st.session_state.r_last_sig == "BUY" and ltp < df['E9'].iloc[-1]) or \
+                   (st.session_state.r_last_sig == "SELL" and ltp > df['E9'].iloc[-1])
+        
+        if reversal and diff > 50:
+            jarvis_r_speak("Warning! Market trend ke against ja raha hai. Exit! Exit!", alert_type="emergency")
+            st.session_state.r_entry = 0
+            st.session_state.r_last_sig = "EXITED"
+            st.session_state.r_trend = "Neutral"
 
-    # --- 📺 DISPLAY ---
+        # ❌ Condition 3: Karishma SL (Hard Stop)
+        sl_limit = st.session_state.r_entry * 0.003
+        if diff < -sl_limit:
+            jarvis_r_speak("Emergency! Karishma Stop Loss hit. Exit immediately.", alert_type="emergency")
+            st.session_state.r_entry = 0
+            st.session_state.r_last_sig = "SL_HIT"
+
+    # --- 📺 Command Center ---
     c1, c2, c3 = st.columns(3)
-    c1.metric("LIVE PRICE", f"₹{ltp}")
-    c2.metric("SIGNAL", st.session_state.last_sig)
-    cur_pnl = round(ltp - st.session_state.entry_price if st.session_state.last_sig == "BUY" else st.session_state.entry_price - ltp, 2) if st.session_state.entry_price > 0 else 0
-    c3.metric("CURRENT PNL", f"{cur_pnl} Pts")
+    c1.metric("Live BTC", f"${ltp}")
+    c2.metric("Signal Status", st.session_state.r_last_sig)
+    pnl_show = round(ltp - st.session_state.r_entry if st.session_state.r_last_sig == "BUY" else st.session_state.r_entry - ltp, 2) if st.session_state.r_entry > 0 else 0
+    c3.metric("Live PNL", f"{pnl_show} Pts")
 
+    # Chart Display
     fig = go.Figure(data=[go.Candlestick(x=df.index, open=df['Open'], high=df['High'], low=df['Low'], close=df['Close'])])
-    fig.update_layout(template="plotly_dark", height=400, margin=dict(l=0,r=0,t=0,b=0), xaxis_rangeslider_visible=False)
+    fig.add_trace(go.Scatter(x=df.index, y=df['E9'], name='Trend Line (9)', line=dict(color='cyan', width=1)))
+    fig.update_layout(template="plotly_dark", height=450, margin=dict(l=0,r=0,t=0,b=0), xaxis_rangeslider_visible=False)
     st.plotly_chart(fig, use_container_width=True)
-    
-    if st.button("🔄 Reset Trade (Agla Trade Leney Ke Liye)"):
-        st.session_state.last_sig = ""
-        st.session_state.entry_price = 0.0
-        st.session_state.alert_done = False
-        st.rerun()
+
+if st.button("🔄 Reset Jarvis R"):
+    st.session_state.r_entry = 0.0
+    st.session_state.r_last_sig = ""
+    st.session_state.r_trend = "Neutral"
+    st.rerun()
