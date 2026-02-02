@@ -3,7 +3,7 @@ import requests
 import pandas as pd
 import pandas_ta as ta
 import plotly.graph_objects as go
-from streamlit_autorefresh import st_autorefresh
+from streamlit_autorefresh import 
 
 # --- 🎯 1. SETTINGS ---
 st.set_page_config(page_title="JARVIS ULTIMATE v85", layout="wide")
