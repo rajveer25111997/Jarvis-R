@@ -1,7 +1,7 @@
 import streamlit as st
 import yfinance as yf
 import requests
-import pandas as pd
+import pandas as pd 
 import pandas_ta as ta
 import plotly.graph_objects as go
 from streamlit_autorefresh import st_autorefresh
