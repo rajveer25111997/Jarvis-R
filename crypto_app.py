@@ -6,99 +6,103 @@ import pandas_ta as ta
 import plotly.graph_objects as go
 from streamlit_autorefresh import st_autorefresh
 
-# --- 🎯 1. CONFIG ---
-st.set_page_config(page_title="Jarvis: Iron-Clad v74", layout="wide")
-st_autorefresh(interval=2000, key="jarvis_v74_stable")
+# --- 🎯 1. SUPREME CONFIG ---
+st.set_page_config(page_title="JARVIS ULTIMATE v75", layout="wide")
+st_autorefresh(interval=3000, key="jarvis_v75_final_fix")
 
+# --- 🔊 2. VOICE ENGINE (With User Interaction Fix) ---
 def jarvis_speak(text):
-    js = f"<script>window.speechSynthesis.cancel(); var m = new SpeechSynthesisUtterance('{text}'); m.lang='hi-IN'; window.speechSynthesis.speak(m);</script>"
-    st.components.v1.html(js, height=0)
+    if text:
+        js = f"""
+        <script>
+        window.speechSynthesis.cancel();
+        var msg = new SpeechSynthesisUtterance('{text}');
+        msg.lang = 'hi-IN';
+        msg.rate = 0.9;
+        window.speechSynthesis.speak(msg);
+        </script>
+        """
+        st.components.v1.html(js, height=0)
 
-# --- 🧠 2. PERSISTENT STATE (No Movement Policy) ---
-if "init" not in st.session_state:
-    st.session_state.update({
-        "st_last": "WAIT", "st_ep": 0.0, "st_sl": 0.0, "st_tg": 0.0, "st_locked": False,
-        "cr_last": "WAIT", "cr_ep": 0.0, "cr_sl": 0.0, "cr_tg": 0.0, "cr_locked": False,
-        "balance": 120.0 
-    })
+# --- 🧠 3. HARD LOCK STATE ---
+if "st_locked" not in st.session_state:
+    st.session_state.st_locked = False
+if "cr_locked" not in st.session_state:
+    st.session_state.cr_locked = False
+if "balance" not in st.session_state:
+    st.session_state.balance = 120.0
 
-st.markdown(f"<h1 style='text-align:center; color:#FFD700;'>🛰️ JARVIS DUAL: IRON-CLAD COMMANDER v74.0</h1>", unsafe_allow_html=True)
+st.markdown("<h1 style='text-align:center; color:#00FF00;'>🛡️ JARVIS DUAL: ULTIMATE v75.0</h1>", unsafe_allow_html=True)
+
+# आवाज़ चालू करने के लिए जरूरी बटन
+if st.button("🔊 ACTIVATE JARVIS VOICE (आवाज़ के लिए यहाँ दबाएँ)"):
+    jarvis_speak("प्रणाम राजवीर सर, जार्विस वॉइस सिस्टम एक्टिवेट हो गया है")
 
 col_st, col_cr = st.columns(2)
 
-# --- 📈 SECTION A: NSE STOCK (Locked Entry) ---
+# --- 📈 SECTION A: NSE STOCK ---
 with col_st:
     st.header("📈 NSE STOCK")
-    asset_st = st.sidebar.selectbox("NSE Asset", ["^NSEI", "^NSEBANK"], key="st_box")
+    asset_st = st.sidebar.selectbox("Asset", ["^NSEI", "^NSEBANK"])
     df_st = yf.Ticker(asset_st).history(period="3d", interval="1m")
     
-    if not df_st.empty and len(df_st) > 100:
+    if not df_st.empty:
+        ltp_st = round(df_st['Close'].iloc[-1], 2)
         df_st['E9'] = ta.ema(df_st['Close'], length=9)
         df_st['E21'] = ta.ema(df_st['Close'], length=21)
-        ltp_st = df_st['Close'].iloc[-1]
-        
-        # Fresh Crossover Detection
-        is_call = bool(df_st['E9'].iloc[-1] > df_st['E21'].iloc[-1])
-        is_put = bool(df_st['E9'].iloc[-1] < df_st['E21'].iloc[-1])
-        
-        # --- 🛡️ LOCKING MECHANISM ---
-        # Agar trade locked nahi hai, tabhi naya entry lo
-        if not st.session_state.st_locked:
-            if is_call:
-                st.session_state.st_last = "CALL"; st.session_state.st_ep = round(ltp_st, 2)
-                st.session_state.st_sl = round(ltp_st - 45, 2); st.session_state.st_tg = round(ltp_st + 200, 2)
-                st.session_state.st_locked = True
-                jarvis_speak(f"NSE Call Locked at {st.session_state.st_ep}")
-            elif is_put:
-                st.session_state.st_last = "PUT"; st.session_state.st_ep = round(ltp_st, 2)
-                st.session_state.st_sl = round(ltp_st + 45, 2); st.session_state.st_tg = round(ltp_st - 200, 2)
-                st.session_state.st_locked = True
-                jarvis_speak(f"NSE Put Locked at {st.session_state.st_ep}")
 
-        st.metric(f"LIVE {asset_st}", f"₹{round(ltp_st,2)}", delta="LOCKED" if st.session_state.st_locked else "SCANNING")
-        st.success(f"📌 {st.session_state.st_last} - ENTRY: {st.session_state.st_ep} | SL: {st.session_state.st_sl} | TG: {st.session_state.st_tg}")
+        # LOCK LOGIC
+        if not st.session_state.st_locked:
+            if df_st['E9'].iloc[-1] > df_st['E21'].iloc[-1]:
+                st.session_state.st_sig = "CALL"; st.session_state.st_ep = ltp_st
+                st.session_state.st_sl = ltp_st - 50; st.session_state.st_tg = ltp_st + 250
+                st.session_state.st_locked = True
+                jarvis_speak(f"एन एस ई कॉल लॉक्ड")
+            elif df_st['E9'].iloc[-1] < df_st['E21'].iloc[-1]:
+                st.session_state.st_sig = "PUT"; st.session_state.st_ep = ltp_st
+                st.session_state.st_sl = ltp_st + 50; st.session_state.st_tg = ltp_st - 250
+                st.session_state.st_locked = True
+                jarvis_speak(f"एन एस ई पुट लॉक्ड")
+
+        st.metric(f"{asset_st}", f"₹{ltp_st}")
+        st.success(f"📌 {st.session_state.get('st_sig', 'SCANNING')} | Entry: {st.session_state.get('st_ep', 0)} | SL: {st.session_state.get('st_sl', 0)} | TG: {st.session_state.get('st_tg', 0)}")
         
         fig_st = go.Figure(data=[go.Candlestick(x=df_st.index, open=df_st['Open'], high=df_st['High'], low=df_st['Low'], close=df_st['Close'])])
-        fig_st.update_layout(template="plotly_dark", height=380, xaxis_rangeslider_visible=False, margin=dict(l=0,r=0,t=0,b=0))
+        fig_st.update_layout(template="plotly_dark", height=300, xaxis_rangeslider_visible=False)
         st.plotly_chart(fig_st, use_container_width=True)
 
-# --- ₿ SECTION B: CRYPTO (Locked Entry) ---
+# --- ₿ SECTION B: CRYPTO ---
 with col_cr:
-    st.header("₿ CRYPTO MARKET")
-    url = "https://min-api.cryptocompare.com/data/v2/histominute?fsym=BTC&tsym=USD&limit=300"
-    try:
-        res = requests.get(url, timeout=3).json()
-        df_cr = pd.DataFrame(res['Data']['Data'])
-        if not df_cr.empty:
-            df_cr['E9'] = ta.ema(df_cr['close'], length=9)
-            df_cr['E21'] = ta.ema(df_cr['close'], length=21)
-            ltp_cr = float(df_cr['close'].iloc[-1])
+    st.header("₿ CRYPTO")
+    url = "https://min-api.cryptocompare.com/data/v2/histominute?fsym=BTC&tsym=USD&limit=200"
+    res = requests.get(url).json()
+    df_cr = pd.DataFrame(res['Data']['Data'])
+    
+    if not df_cr.empty:
+        ltp_cr = float(df_cr['close'].iloc[-1])
+        df_cr['E9'] = ta.ema(df_cr['close'], length=9)
+        df_cr['E21'] = ta.ema(df_cr['close'], length=21)
 
-            if not st.session_state.cr_locked:
-                if df_cr['E9'].iloc[-1] > df_cr['E21'].iloc[-1]:
-                    st.session_state.cr_last = "CALL"; st.session_state.cr_ep = round(ltp_cr, 2)
-                    st.session_state.cr_sl = round(ltp_cr - 200, 2); st.session_state.cr_tg = round(ltp_cr + 500, 2)
-                    st.session_state.cr_locked = True
-                    jarvis_speak("Crypto Signal Locked!")
-                elif df_cr['E9'].iloc[-1] < df_cr['E21'].iloc[-1]:
-                    st.session_state.cr_last = "PUT"; st.session_state.cr_ep = round(ltp_cr, 2)
-                    st.session_state.cr_sl = round(ltp_cr + 200, 2); st.session_state.cr_tg = round(ltp_cr - 500, 2)
-                    st.session_state.cr_locked = True
-                    jarvis_speak("Crypto Signal Locked!")
+        if not st.session_state.cr_locked:
+            if df_cr['E9'].iloc[-1] > df_cr['E21'].iloc[-1]:
+                st.session_state.cr_sig = "CALL"; st.session_state.cr_ep = ltp_cr
+                st.session_state.cr_sl = ltp_cr - 200; st.session_state.cr_tg = ltp_cr + 600
+                st.session_state.cr_locked = True
+                jarvis_speak("क्रिप्टो कॉल लॉक्ड")
+            elif df_cr['E9'].iloc[-1] < df_cr['E21'].iloc[-1]:
+                st.session_state.cr_sig = "PUT"; st.session_state.cr_ep = ltp_cr
+                st.session_state.cr_sl = ltp_cr + 200; st.session_state.cr_tg = ltp_cr - 600
+                st.session_state.cr_locked = True
+                jarvis_speak("क्रिप्टो पुट लॉक्ड")
 
-            st.metric("BTC PRICE", f"${ltp_cr}", delta="LOCKED" if st.session_state.cr_locked else "SCANNING")
-            qty = round((st.session_state.balance * 10) / ltp_cr, 4)
-            st.warning(f"💰 Bal: ${st.session_state.balance} | Qty: {qty} BTC")
-            st.info(f"📌 {st.session_state.cr_last} - E: {st.session_state.cr_ep} | SL: {st.session_state.cr_sl} | TG: {st.session_state.cr_tg}")
-            
-            fig_cr = go.Figure(data=[go.Candlestick(x=pd.to_datetime(df_cr['time'], unit='s'), open=df_cr['open'], high=df_cr['high'], low=df_cr['low'], close=df_cr['close'])])
-            fig_cr.update_layout(template="plotly_dark", height=380, xaxis_rangeslider_visible=False, margin=dict(l=0,r=0,t=0,b=0))
-            st.plotly_chart(fig_cr, use_container_width=True)
-    except: st.info("📡 Crypto Syncing...")
+        st.metric("BTC/USD", f"${ltp_cr}")
+        qty = round((st.session_state.balance * 10) / ltp_cr, 4)
+        st.warning(f"💰 Qty: {qty} BTC | Bal: ${st.session_state.balance}")
+        st.info(f"📌 {st.session_state.get('cr_sig', 'SCANNING')} | Entry: {st.session_state.get('cr_ep', 0)} | SL: {st.session_state.get('cr_sl', 0)} | TG: {st.session_state.get('cr_tg', 0)}")
 
-# --- 🛡️ MASTER BUTTON ---
+# --- 🛡️ UNLOCK BUTTON ---
 st.write("---")
-if st.button("🔄 UNLOCK & SCAN FOR NEW SIGNAL"):
-    for key in ["st_last", "st_ep", "st_sl", "st_tg", "st_locked", "cr_last", "cr_ep", "cr_sl", "cr_tg", "cr_locked"]:
-        st.session_state[key] = "WAIT" if "last" in key else (False if "locked" in key else 0.0)
+if st.button("🔄 UNLOCK ALL & SCAN NEW"):
+    st.session_state.st_locked = False
+    st.session_state.cr_locked = False
     st.rerun()
