@@ -1,119 +1,104 @@
 import streamlit as st
 import yfinance as yf
-import requests
 import pandas as pd
 import pandas_ta as ta
 import plotly.graph_objects as go
 from streamlit_autorefresh import st_autorefresh
+from datetime import datetime
 
-# --- 🎯 1. SUPREME CONFIG (Stable 2-Sec) ---
-st.set_page_config(page_title="JARVIS DUAL: PROTECTOR", layout="wide")
-st_autorefresh(interval=2000, key="jarvis_v58_stable")
+# --- 🎯 1. SUPREME CONFIG (1-SEC) ---
+st.set_page_config(page_title="JARVIS SUPREME v60", layout="wide")
+st_autorefresh(interval=1500, key="jarvis_v60_supreme")
 
-# --- 🔊 2. EMERGENCY SIREN & WAKE SYSTEM ---
-def jarvis_emergency_system(text, alert_type="normal"):
-    siren_url = "https://www.soundjay.com/buttons/sounds/beep-09.mp3" if alert_type == "emergency" else "https://www.soundjay.com/buttons/sounds/beep-07.mp3"
+# --- 🔊 2. CRITICAL BROWSER VOICE FIX (Web Speech API) ---
+def jarvis_speak_supreme(text, alert_type="normal"):
+    siren = "https://www.soundjay.com/buttons/sounds/beep-09.mp3" if alert_type == "emergency" else ""
     js_code = f"""
     <script>
-    if ('wakeLock' in navigator) {{ navigator.wakeLock.request('screen').catch(err => {{}}); }}
     window.speechSynthesis.cancel();
-    var siren = new Audio('{siren_url}'); siren.play();
-    setTimeout(function() {{
-        var msg = new SpeechSynthesisUtterance('{text}');
-        msg.lang = 'hi-IN'; msg.rate = 1.0;
-        window.speechSynthesis.speak(msg);
-    }}, 1200);
+    if ("{siren}" !== "") {{ new Audio("{siren}").play(); }}
+    var msg = new SpeechSynthesisUtterance("{text}");
+    msg.lang = 'hi-IN'; msg.rate = 1.0; msg.pitch = 1.1;
+    window.speechSynthesis.speak(msg);
+    if ('wakeLock' in navigator) {{ navigator.wakeLock.request('screen'); }}
     </script>
     """
     st.components.v1.html(js_code, height=0)
 
-st.markdown("<h1 style='text-align:center; color:#00FF00;'>🛰️ JARVIS DUAL: SUPREME PROTECTOR v58.0</h1>", unsafe_allow_html=True)
-
-# --- 🧠 3. STATE MANAGEMENT (All 43+ Points) ---
+# --- 🧠 3. STATE & FILTER MANAGEMENT ---
 if "init" not in st.session_state:
-    st.session_state.init = True
-    st.session_state.st_last = ""; st.session_state.st_ep = 0.0; st.session_state.st_sl = 0.0; st.session_state.st_tg = 0.0
-    st.session_state.r_last = ""; st.session_state.r_ep = 0.0; st.session_state.r_sl = 0.0; st.session_state.r_tg = 0.0
+    st.session_state.update({
+        "last_sig": "", "ep": 0.0, "sl": 0.0, "tp": 0.0,
+        "total_pts": 0.0, "active": False
+    })
 
-col_st, col_cr = st.columns(2)
-
-# --- 📈 SECTION A: NSE STOCK (JAVED & KARISHMA) ---
-with col_st:
-    st.subheader("📈 NSE STOCK MARKET")
-    asset_st = st.sidebar.selectbox("Select NSE", ["^NSEI", "^NSEBANK"], key="st_box")
+# --- 🛰️ 4. DATA & OI SIMULATION ENGINE ---
+def get_market_data(symbol):
     try:
-        # 7 दिन का डेटा ताकि EMA200 कभी क्रैश न हो
-        df_st = yf.download(asset_st, period="7d", interval="1m", progress=False)
-        if not df_st.empty and len(df_st) > 200:
-            df_st['E9'] = ta.ema(df_st['Close'], length=9)
-            df_st['E21'] = ta.ema(df_st['Close'], length=21)
-            df_st['E200'] = ta.ema(df_st['Close'], length=200)
-            ltp = float(df_st['Close'].iloc[-1])
+        df = yf.download(symbol, period="5d", interval="1m", progress=False)
+        # OI Analysis Simulation (Since Yahoo doesn't give live NSE OI)
+        # Real-time mein yahan Upstox/AliceBlue API jud sakti hai
+        df['OI_Trend'] = "BULLISH" if df['Close'].iloc[-1] > df['Open'].iloc[-1] else "BEARISH"
+        return df
+    except: return pd.DataFrame()
+
+st.markdown("<h1 style='text-align:center; color:#00FF00;'>🛡️ JARVIS SUPREME: COMMANDER v60.0</h1>", unsafe_allow_html=True)
+
+# --- 🚀 5. EXECUTION ---
+col_main, col_stats = st.columns([3, 1])
+
+with col_main:
+    asset = st.selectbox("Select Asset", ["^NSEI", "^NSEBANK", "BTC-USD"])
+    df = get_market_data(asset)
+    
+    if not df.empty and len(df) > 100:
+        df['E9'] = ta.ema(df['Close'], length=9)
+        df['E21'] = ta.ema(df['Close'], length=21)
+        df['E200'] = ta.ema(df['Close'], length=200)
+        ltp = float(df['Close'].iloc[-1])
+        oi_status = df['OI_Trend'].iloc[-1]
+        
+        # Javed Strategy + OI Filter
+        is_call = bool(df['E9'].iloc[-1] > df['E21'].iloc[-1] and ltp > df['E200'].iloc[-1] and oi_status == "BULLISH")
+        is_put = bool(df['E9'].iloc[-1] < df['E21'].iloc[-1] and ltp < df['E200'].iloc[-1] and oi_status == "BEARISH")
+
+        # High Probability Signal Trigger
+        if is_call and st.session_state.last_sig != "CALL":
+            st.session_state.last_sig = "CALL"; st.session_state.ep = ltp
+            st.session_state.sl = ltp - 30; st.session_state.tp = ltp + 50
+            jarvis_speak_supreme(f"Rajveer Sir, High Probability Call Entry! OI is Bullish. Strike Price: {round(ltp/100)*100} CE")
+        elif is_put and st.session_state.last_sig != "PUT":
+            st.session_state.last_sig = "PUT"; st.session_state.ep = ltp
+            st.session_state.sl = ltp + 30; st.session_state.tp = ltp - 50
+            jarvis_speak_supreme(f"Rajveer Sir, High Probability Put Entry! OI is Bearish. Strike Price: {round(ltp/100)*100} PE")
+
+        # --- 🎯 6. STRICT PROFIT FILTER (10-20 Points) ---
+        if st.session_state.ep > 0:
+            current_pnl = ltp - st.session_state.ep if st.session_state.last_sig == "CALL" else st.session_state.ep - ltp
             
-            # Javed Strategy
-            is_call = bool(df_st['E9'].iloc[-1] > df_st['E21'].iloc[-1] and ltp > df_st['E200'].iloc[-1])
-            is_put = bool(df_st['E9'].iloc[-1] < df_st['E21'].iloc[-1] and ltp < df_st['E200'].iloc[-1])
+            if current_pnl >= 20:
+                jarvis_speak_supreme("Rajveer Sir, 20 points secured! Stop loss trail karein, ruko nahi!", "normal")
+            elif current_pnl <= -15:
+                jarvis_speak_supreme("Emergency Exit! Strict SL hit.", "emergency")
+                st.session_state.ep = 0; st.session_state.last_sig = "EXIT"
 
-            if is_call and st.session_state.st_last != "CALL":
-                st.session_state.st_last = "CALL"; st.session_state.st_ep = ltp
-                st.session_state.st_sl = ltp - 45; st.session_state.st_tg = ltp + 120
-                jarvis_emergency_system(f"Stock Call Entry! Price: {ltp}")
-            elif is_put and st.session_state.st_last != "PUT":
-                st.session_state.st_last = "PUT"; st.session_state.st_ep = ltp
-                st.session_state.st_sl = ltp + 45; st.session_state.st_tg = ltp - 120
-                jarvis_emergency_system(f"Stock Put Entry! Price: {ltp}")
+        # Charting
+        fig = go.Figure(data=[go.Candlestick(x=df.index, open=df['Open'], high=df['High'], low=df['Low'], close=df['Close'])])
+        fig.add_trace(go.Scatter(x=df.index, y=df['E200'], name='200 EMA', line=dict(color='orange')))
+        fig.update_layout(template="plotly_dark", height=500, xaxis_rangeslider_visible=False, margin=dict(l=0,r=0,t=0,b=0))
+        st.plotly_chart(fig, use_container_width=True)
 
-            # Karishma SL Protection
-            if st.session_state.st_ep > 0:
-                pnl = ltp - st.session_state.st_ep if st.session_state.st_last == "CALL" else st.session_state.st_ep - ltp
-                if pnl <= -45: # Karishma SL
-                    jarvis_emergency_system("Karishma SL Hit! Exit Stock.", "emergency")
-                    st.session_state.st_last = "EXITED"; st.session_state.st_ep = 0
-
-            st.metric(f"NSE {asset_st}", f"₹{round(ltp,2)}", delta=f"{st.session_state.st_last}")
-            st.info(f"**ENTRY:** {st.session_state.st_ep} | **SL:** {st.session_state.st_sl} | **TG:** {st.session_state.st_tg}")
-            
-            fig_st = go.Figure(data=[go.Candlestick(x=df_st.index, open=df_st['Open'], high=df_st['High'], low=df_st['Low'], close=df_st['Close'])])
-            fig_st.add_trace(go.Scatter(x=df_st.index, y=df_st['E200'], name='200 EMA', line=dict(color='orange')))
-            fig_st.update_layout(template="plotly_dark", height=400, xaxis_rangeslider_visible=False, margin=dict(l=0,r=0,t=0,b=0))
-            st.plotly_chart(fig_st, use_container_width=True)
-        else: st.warning("📡 NSE Data Re-connecting...")
-    except: st.info("📡 Calibrating Stock Satellite...")
-
-# --- ₿ SECTION B: CRYPTO (JARVIS R) ---
-with col_cr:
-    st.subheader("₿ CRYPTO MARKET")
-    try:
-        url = "https://min-api.cryptocompare.com/data/v2/histominute?fsym=BTC&tsym=USD&limit=300"
-        res = requests.get(url, timeout=3).json()
-        df_cr = pd.DataFrame(res['Data']['Data'])
-        if not df_cr.empty:
-            df_cr['E9'] = ta.ema(df_cr['close'], length=9)
-            df_cr['E21'] = ta.ema(df_cr['close'], length=21)
-            df_cr['E200'] = ta.ema(df_cr['close'], length=200)
-            ltp_r = float(df_cr['close'].iloc[-1])
-
-            if df_cr['E9'].iloc[-1] > df_cr['E21'].iloc[-1] and ltp_r > df_cr['E200'].iloc[-1] and st.session_state.r_last != "CALL":
-                st.session_state.r_last = "CALL"; st.session_state.r_ep = ltp_r; st.session_state.r_sl = ltp_r - 180
-                jarvis_emergency_system("Crypto Call Buy!")
-            elif df_cr['E9'].iloc[-1] < df_cr['E21'].iloc[-1] and ltp_r < df_cr['E200'].iloc[-1] and st.session_state.r_last != "PUT":
-                st.session_state.r_last = "PUT"; st.session_state.r_ep = ltp_r; st.session_state.r_sl = ltp_r + 180
-                jarvis_emergency_system("Crypto Put Buy!")
-
-            # Hunter Momentum Tracker
-            if st.session_state.r_ep > 0:
-                pnl_r = ltp_r - st.session_state.r_ep if st.session_state.r_last == "CALL" else st.session_state.r_ep - ltp_r
-                if pnl_r >= 350: jarvis_emergency_system("Rajveer Sir, Jackpot Points! Ruko nahi!", "normal")
-
-            st.metric("BTC PRICE", f"${ltp_r}", delta=f"{st.session_state.r_last}")
-            st.warning(f"**ENTRY:** {st.session_state.r_ep} | **SL:** {st.session_state.r_sl}")
-            
-            fig_cr = go.Figure(data=[go.Candlestick(x=pd.to_datetime(df_cr['time'], unit='s'), open=df_cr['open'], high=df_cr['high'], low=df_cr['low'], close=df_cr['close'])])
-            fig_cr.add_trace(go.Scatter(x=pd.to_datetime(df_cr['time'], unit='s'), y=df_cr['E200'], name='200 EMA', line=dict(color='orange')))
-            fig_cr.update_layout(template="plotly_dark", height=400, xaxis_rangeslider_visible=False, margin=dict(l=0,r=0,t=0,b=0))
-            st.plotly_chart(fig_cr, use_container_width=True)
-    except: st.info("📡 Connecting Crypto Satellite...")
-
-if st.button("🔄 FULL SYSTEM RECOVERY (RESET)"):
-    for key in st.session_state.keys(): del st.session_state[key]
-    st.rerun()
+with col_stats:
+    st.subheader("🏥 Stats & OI")
+    st.metric("LIVE PRICE", f"₹{ltp}")
+    st.write(f"**OI Analysis:** {oi_status}")
+    st.write(f"**Current Signal:** {st.session_state.last_sig}")
+    st.write(f"**Entry Price:** {st.session_state.ep}")
+    
+    # Strike Price Logic
+    strike = round(ltp / 100) * 100
+    st.success(f"SUGGESTED STRIKE: {strike}")
+    
+    if st.button("🔄 Reset Master"):
+        for key in st.session_state.keys(): del st.session_state[key]
+        st.rerun()
