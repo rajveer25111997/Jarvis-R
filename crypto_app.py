@@ -4,95 +4,107 @@ import pandas_ta as ta
 import requests
 import plotly.graph_objects as go
 from streamlit_autorefresh import st_autorefresh
-from datetime import datetime
 
-# --- 🎯 1. SUPREME SETTINGS ---
-st.set_page_config(page_title="JARVIS REBORN v107", layout="wide")
-st_autorefresh(interval=3000, key="jarvis_v107_final")
+# --- 🎯 1. SUPREME CONFIG (1s Refresh for Crypto Speed) ---
+st.set_page_config(page_title="Crypto Jarvis v160", layout="wide")
+st_autorefresh(interval=1000, key="crypto_jarvis_1s")
 
-# --- 🔊 2. MASTER VOICE (Hindi Re-Stored) ---
+# --- 🔊 2. MASTER VOICE ENGINE ---
 def jarvis_speak(text):
     if text:
-        js = f"<script>window.speechSynthesis.cancel(); var m = new SpeechSynthesisUtterance('{text}'); m.lang='hi-IN'; window.speechSynthesis.speak(m);</script>"
+        js = f"<script>window.speechSynthesis.cancel(); var m = new SpeechSynthesisUtterance('{text}'); m.lang='hi-IN'; m.rate=1.1; window.speechSynthesis.speak(m);</script>"
         st.components.v1.html(js, height=0)
 
-# --- 🧠 3. PERMANENT BRAIN (No Movement) ---
+# --- 🧠 3. PERMANENT BRAIN & PORTFOLIO DOCTOR ---
 if "init" not in st.session_state:
     st.session_state.update({
-        "st_lock": False, "cr_lock": False, "st_sig": "SCANNING", "cr_sig": "SCANNING",
-        "st_ep": 0.0, "st_sl": 0.0, "st_tg": 0.0, "balance": 120.0
+        "locked": False, "sig": "SCANNING", 
+        "ep": 0.0, "sl": 0.0, "tg": 0.0,
+        "health": "GOOD", "bal": 120.0, "last_msg": ""
     })
 
-st.markdown("<h1 style='text-align:center; color:#00FF00;'>🛡️ JARVIS REBORN v107.0</h1>", unsafe_allow_html=True)
+st.markdown("<h1 style='text-align:center; color:#F7931A;'>₿ CRYPTO JARVIS COMMANDER v160.0</h1>", unsafe_allow_html=True)
 
-if st.button("🔊 ACTIVATE JARVIS SYSTEM (आवाज़ यहाँ से शुरू करें)"):
-    jarvis_speak("नमस्ते राजवीर सर, जार्विस का सबसे मज़बूत सिस्टम अब लाइव है।")
-
-col_st, col_cr = st.columns(2)
-
-# --- 📈 SECTION A: NSE (No-YFinance High-Speed Logic) ---
-with col_st:
-    st.header("📈 NSE (Fast Feed)")
+# --- 📈 4. DIRECT BINANCE DATA ENGINE (No-Blink) ---
+def fetch_crypto_data():
     try:
-        # Alternate Data Source for Nifty
-        url_nse = "https://query1.finance.yahoo.com/v8/finance/chart/^NSEI?interval=1m&range=1d"
-        headers = {'User-Agent': 'Mozilla/5.0'}
-        res = requests.get(url_nse, headers=headers, timeout=5).json()
-        
-        price_data = res['chart']['result'][0]['indicators']['quote'][0]['close']
-        time_data = res['chart']['result'][0]['timestamp']
-        
-        df_st = pd.DataFrame({'Close': price_data}, index=pd.to_datetime(time_data, unit='s'))
-        df_st = df_st.dropna()
-        
-        if not df_st.empty:
-            ltp = round(df_st['Close'].iloc[-1], 2)
-            df_st['E9'] = ta.ema(df_st['Close'], length=9)
-            df_st['E21'] = ta.ema(df_st['Close'], length=21)
+        # Fetching Bitcoin (BTC/USDT) from Binance
+        url = "https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=100"
+        res = requests.get(url, timeout=3).json()
+        df = pd.DataFrame(res, columns=['Time', 'Open', 'High', 'Low', 'Close', 'Volume', 'CloseTime', 'QuoteAssetVol', 'Trades', 'TakerBuyBase', 'TakerBuyQuote', 'Ignore'])
+        df['Close'] = df['Close'].astype(float)
+        df['Volume'] = df['Volume'].astype(float)
+        df.index = pd.to_datetime(df['Time'], unit='ms')
+        return df[['Close', 'Volume']]
+    except: return pd.DataFrame()
 
-            if not st.session_state.st_lock:
-                if df_st['E9'].iloc[-1] > df_st['E21'].iloc[-1]:
-                    st.session_state.update({"st_sig": "CALL", "st_ep": ltp, "st_sl": ltp-45, "st_tg": ltp+250, "st_lock": True})
-                    jarvis_speak("एन एस ई कॉल सिग्नल लॉक्ड")
-                elif df_st['E9'].iloc[-1] < df_st['E21'].iloc[-1]:
-                    st.session_state.update({"st_sig": "PUT", "st_ep": ltp, "st_sl": ltp+45, "st_tg": ltp-250, "st_lock": True})
-                    jarvis_speak("एन एस ई पुट सिग्नल लॉक्ड")
+df = fetch_crypto_data()
 
-            st.metric("NIFTY 50", f"₹{ltp}")
-            st.success(f"📌 {st.session_state.st_sig} | Entry: {st.session_state.st_ep} | SL: {st.session_state.st_sl}")
-            
-            fig_st = go.Figure(data=[go.Scatter(x=df_st.index, y=df_st['Close'], line=dict(color='#00FF00', width=2))])
-            fig_st.update_layout(template="plotly_dark", height=300, margin=dict(l=0,r=0,t=0,b=0))
-            st.plotly_chart(fig_st, use_container_width=True)
-    except: st.info("🔄 NSE डेटा लाइन बिजी है, री-कनेक्ट कर रहा हूँ...")
-
-# --- ₿ SECTION B: CRYPTO (Multi-Server Unstoppable Feed) ---
-with col_cr:
-    st.header("₿ CRYPTO (BTC/USD)")
-    ltp_cr = 0.0
-    # 3-Way Fail-Safe Data
-    sources = ["https://api.binance.com/api/v3/ticker/price?symbol=BTCUSDT", 
-               "https://api.coinbase.com/v2/prices/BTC-USD/spot"]
+# --- ⚙️ 5. INTEGRATING ALL 45 POINTS (Crypto Mode) ---
+if not df.empty and len(df) > 21:
+    ltp = round(df['Close'].iloc[-1], 2)
+    df['E9'] = ta.ema(df['Close'], length=9)
+    df['E21'] = ta.ema(df['Close'], length=21)
+    df['E200'] = ta.ema(df['Close'], length=min(len(df), 200))
     
-    for url in sources:
-        try:
-            r = requests.get(url, timeout=3).json()
-            ltp_cr = float(r['price']) if 'price' in r else float(r['data']['amount'])
-            if ltp_cr > 0: break
-        except: continue
+    # Whale Radar (Crypto Whale Alerts)
+    vol_spike = df['Volume'].iloc[-1] > (df['Volume'].tail(15).mean() * 1.5)
 
-    if ltp_cr > 0:
-        if not st.session_state.cr_lock:
-            st.session_state.update({"cr_sig": "READY", "cr_ep": ltp_cr, "cr_sl": ltp_cr-200, "cr_tg": ltp_cr+600, "cr_lock": True})
-            jarvis_speak("क्रिप्टो सिग्नल अपडेट हो गया है")
+    if not st.session_state.locked:
+        e9, e21, e200 = df['E9'].iloc[-1], df['E21'].iloc[-1], df['E200'].iloc[-1]
+        
+        # Javed (9/21) + Whale Presence + Trend
+        is_call = e9 > e21 and ltp > e200 and vol_spike
+        is_put = e9 < e21 and ltp < e200 and vol_spike
 
-        st.metric("BTC PRICE", f"${round(ltp_cr, 2)}")
-        qty = round((st.session_state.balance * 10) / ltp_cr, 4)
-        st.warning(f"💰 Qty: {qty} BTC | Bal: $120")
-        st.info(f"📌 {st.session_state.cr_sig} | E: {st.session_state.cr_ep}")
-    else: st.info("🔄 क्रिप्टो डेटा इंतज़ार में है...")
+        if is_call or is_put:
+            side = "LONG (BUY)" if is_call else "SHORT (SELL)"
+            # Karishma SL Logic (Crypto Volatility adjustment)
+            sl_val = ltp - 150 if is_call else ltp + 150
+            tg_val = ltp + 450 if is_call else ltp - 450
+            
+            st.session_state.update({
+                "sig": side, "ep": ltp, "sl": sl_val, "tg": tg_val, "locked": True
+            })
+            jarvis_speak(f"राजवीर सर, क्रिप्टो व्हेल ने एंट्री ली है। {side} सिग्नल लॉक है।")
 
-st.write("---")
-if st.button("🔄 RESET ALL (नया ट्रेड स्कैन करें)"):
+    else:
+        # Portfolio Doctor & Emergency Siren Tracking
+        profit = (ltp - st.session_state.ep) if "LONG" in st.session_state.sig else (st.session_state.ep - ltp)
+        
+        if profit <= -100: # Emergency Siren for Crypto
+            st.session_state.health = "🆘 EXIT NOW!"
+            if st.session_state.last_msg != "exit":
+                jarvis_speak("इमरजेंसी सायरन! राजवीर सर, बिटकॉइन पलट गया है, तुरंत बाहर निकलें।")
+                st.session_state.last_msg = "exit"
+        elif profit >= 300:
+            st.session_state.health = "🚀 JACKPOT HOLD"
+        else:
+            st.session_state.health = "✅ POSITION HEALTHY"
+
+    # --- 📊 6. CRYPTO DASHBOARD ---
+    c1, c2, c3 = st.columns(3)
+    c1.metric("BITCOIN (BTC/USDT)", f"${ltp}")
+    c2.success(f"📌 {st.session_state.sig} @ ${st.session_state.ep}")
+    
+    # Portfolio Doctor Box
+    doc_clr = "red" if "EXIT" in st.session_state.health else "gold" if "JACKPOT" in st.session_state.health else "#00FF00"
+    c3.markdown(f"<div style='background-color:{doc_clr}; padding:10px; border-radius:10px; color:black; font-weight:bold; text-align:center;'>DOCTOR: {st.session_state.health}</div>", unsafe_allow_html=True)
+
+    # Risk Management Display
+    st.write(f"### 📈 Profit/Loss: ${round(profit, 2) if st.session_state.locked else 0.0}")
+    
+    
+    fig = go.Figure(data=[go.Scatter(x=df.index, y=df['Close'], name='Price', line=dict(color='#F7931A', width=2))])
+    fig.add_trace(go.Scatter(x=df.index, y=df['E9'], name='EMA 9', line=dict(color='yellow')))
+    fig.add_trace(go.Scatter(x=df.index, y=df['E21'], name='EMA 21', line=dict(color='cyan')))
+    fig.update_layout(template="plotly_dark", height=450, margin=dict(l=0,r=0,t=0,b=0))
+    st.plotly_chart(fig, use_container_width=True)
+
+else:
+    st.info("📡 जार्विस 1 सेकंड की रफ़्तार से क्रिप्टो व्हेल और बिटकॉइन की चाल स्कैन कर रहा है...")
+
+# --- 🛡️ MASTER RESET ---
+if st.button("🔄 FULL SYSTEM RESET"):
     for key in list(st.session_state.keys()): del st.session_state[key]
     st.rerun()
