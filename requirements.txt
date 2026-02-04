@@ -1,7 +1,6 @@
 streamlit
-yfinance
 pandas
-pandas_ta
-plotly
+pandas-ta
 requests
+plotly
 streamlit-autorefresh
