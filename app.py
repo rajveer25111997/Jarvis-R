@@ -1,41 +1,27 @@
-# app.py - यह ऑटोमैटिक अपडेट होगा
 import streamlit as st
-from engine import get_market_data, apply_javed_strategy # इंजन से इंपोर्ट
+from engine import get_market_data, get_news_impact # इंजन से कनेक्शन
 from streamlit_autorefresh import st_autorefresh
 
-st_autorefresh(interval=1000, key="jarvis_live")
+st.set_page_config(page_title="Jarvis Module A", layout="wide")
+st_autorefresh(interval=2000, key="jarvis_sync")
 
-st.title("🏛️ JARVIS FINAL DASHBOARD")
+st.title("🏛️ JARVIS: MODULE TESTING (NEWS)")
 
-# इंजन को कॉल करना
+# डेटा लाना
 df = get_market_data()
-df = apply_javed_strategy(df)
 
-ltp = df['Close'].iloc[-1]
-st.metric("NIFTY LIVE", f"₹{ltp}")
-
-if df['E9'].iloc[-1] > df['E21'].iloc[-1]:
-    st.success("✅ JAVED SAYS: BUY CALL")
+if not df.empty:
+    # न्यूज़ पॉइंट टेस्ट करना
+    atr_val, news_stat = get_news_impact(df)
+    
+    c1, c2 = st.columns(2)
+    c1.metric("NIFTY LIVE", f"₹{df['Close'].iloc[-1]}")
+    
+    # न्यूज़ का डिस्प्ले
+    color = "inverse" if news_stat == "HIGH" else "normal"
+    c2.metric("NEWS FLOW (ATR)", f"{atr_val}", delta=news_stat, delta_color=color)
+    
+    if news_stat == "HIGH":
+        st.warning("🚨 जार्विस न्यूज़ अलर्ट: बाज़ार में हलचल तेज़ है, बड़ा मूव आ सकता है!")
 else:
-    st.error("❌ JAVED SAYS: BUY PUT")
-# app.py में न्यूज़ का अपडेट
-import streamlit as st
-from engine import get_market_data, apply_javed_strategy, get_news_impact # नया फंक्शन जोड़ा
-
-st.title("🏛️ JARVIS COMMANDER v1.1")
-
-df = get_market_data()
-df = apply_javed_strategy(df)
-
-# न्यूज़ का डेटा इंजन से खींचना
-atr_value, news_status = get_news_impact(df)
-
-# डैशबोर्ड पर दिखाना
-c1, c2, c3 = st.columns(3)
-c1.metric("LTP", f"₹{df['Close'].iloc[-1]}")
-c2.metric("News Flow (ATR)", f"{atr_value}")
-
-if news_status == "HIGH":
-    c3.warning("🚨 ALERT: NEWS IMPACT DETECTED!")
-else:
-    c3.success("✅ MARKET: STABLE")
+    st.info("📡 जार्विस इंजन डेटा सिंक कर रहा है... कृपया रुकें।")
